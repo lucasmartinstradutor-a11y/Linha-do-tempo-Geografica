@@ -15,7 +15,7 @@ SHEET_ID = "1Q3IsRvT5KmR72NtWYuHSqKz50xdP9S4a-U5z6UAacTQ"
 # Dicionário com os nomes, GIDs e tipos de cada aba
 SOURCES = {
     "Geografia Mundial": {"gid": "0", "type": "timeline"},
-    "História do Brasil": {"gid": "SEU_GID_AQUI", "type": "timeline"},
+    "História do Brasil": {"gid": "1829533477", "type": "timeline"},
     "Líderes do Brasil": {"gid": "918682842", "type": "leaders"}
 }
 
