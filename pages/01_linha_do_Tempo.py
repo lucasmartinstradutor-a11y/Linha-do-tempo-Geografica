@@ -9,10 +9,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# URL da planilha do Google Sheets no formato de exportação CSV
+# --- Configuração das Fontes de Dados (Planilhas) ---
+# ID da sua planilha do Google Sheets (o mesmo para ambas as abas)
 SHEET_ID = "1Q3IsRvT5KmR72NtWYuHSqKz50xdP9S4a-U5z6UAacTQ"
-SHEET_GID = "0"
-GOOGLE_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
+
+# Dicionário com os nomes das linhas do tempo e os GIDs de cada aba
+# IMPORTANTE: Substitua "SEU_GID_AQUI" pelo GID da sua nova aba "História do Brasil"
+SOURCES = {
+    "Geografia Mundial": f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0",
+    "História do Brasil": f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1829533477"
+}
 
 # Função para carregar os dados, com cache para otimizar a performance
 @st.cache_data(ttl=600) # Atualiza os dados a cada 10 minutos
@@ -21,6 +27,7 @@ def load_data(url):
     try:
         df = pd.read_csv(url)
         df.dropna(how='all', inplace=True)
+        # Renomeia as colunas para garantir consistência
         df.columns = ['Data', 'Titulo', 'Descricao', 'Tema']
         return df
     except Exception as e:
@@ -29,113 +36,31 @@ def load_data(url):
 
 def generate_timeline_html(df):
     """Gera o código HTML para a linha do tempo visual a partir de um DataFrame."""
-
-    # CSS para estilizar a linha do tempo, injetado diretamente no HTML
     timeline_css = """
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-        }
-        .timeline-container {
-            position: relative;
-            padding: 2rem 0;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        .timeline-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 3px;
-            height: 100%;
-            background-color: #D1D5DB;
-        }
-        .timeline-item {
-            padding: 10px 40px;
-            position: relative;
-            width: 50%;
-            box-sizing: border-box;
-        }
-        .timeline-item.left {
-            left: 0;
-        }
-        .timeline-item.right {
-            left: 50%;
-        }
-        .timeline-item::after {
-            content: '';
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            right: -10px;
-            background-color: white;
-            border: 4px solid #FF9F55;
-            top: 25px;
-            border-radius: 50%;
-            z-index: 1;
-        }
-        .timeline-item.right::after {
-            left: -10px;
-        }
-        .timeline-content {
-            padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-        }
-        .timeline-content h2 {
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: #374151;
-        }
-        .timeline-content p {
-            font-size: 0.9rem;
-            line-height: 1.6;
-            color: #4B5563;
-        }
-        .timeline-date {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #6B7280;
-            margin-bottom: 0.5rem;
-        }
-        .timeline-theme {
-            display: inline-block;
-            background-color: #FFF7ED;
-            color: #FB923C;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            margin-top: 1rem;
-        }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        .timeline-container { position: relative; padding: 2rem 0; max-width: 1000px; margin: 0 auto; }
+        .timeline-container::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 3px; height: 100%; background-color: #D1D5DB; }
+        .timeline-item { padding: 10px 40px; position: relative; width: 50%; box-sizing: border-box; }
+        .timeline-item.left { left: 0; }
+        .timeline-item.right { left: 50%; }
+        .timeline-item::after { content: ''; position: absolute; width: 20px; height: 20px; right: -10px; background-color: white; border: 4px solid #FF9F55; top: 25px; border-radius: 50%; z-index: 1; }
+        .timeline-item.right::after { left: -10px; }
+        .timeline-content { padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .timeline-content h2 { font-size: 1.25rem; font-weight: bold; color: #374151; }
+        .timeline-content p { font-size: 0.9rem; line-height: 1.6; color: #4B5563; }
+        .timeline-date { font-size: 0.875rem; font-weight: 500; color: #6B7280; margin-bottom: 0.5rem; }
+        .timeline-theme { display: inline-block; background-color: #FFF7ED; color: #FB923C; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; margin-top: 1rem; }
         @media screen and (max-width: 768px) {
-            .timeline-container::before {
-                left: 10px;
-            }
-            .timeline-item {
-                width: 100%;
-                padding-left: 50px;
-                padding-right: 10px;
-            }
-            .timeline-item.left, .timeline-item.right {
-                left: 0%;
-            }
-            .timeline-item.left::after, .timeline-item.right::after {
-                left: 1px;
-            }
+            .timeline-container::before { left: 10px; }
+            .timeline-item { width: 100%; padding-left: 50px; padding-right: 10px; }
+            .timeline-item.left, .timeline-item.right { left: 0%; }
+            .timeline-item.left::after, .timeline-item.right::after { left: 1px; }
         }
     </style>
     """
-
-    # Inicia a construção do HTML
     items_html = ""
     for index, row in df.iterrows():
-        # Alterna a posição dos cards (esquerda/direita)
         position = "left" if index % 2 == 0 else "right"
         items_html += f"""
         <div class="timeline-item {position}">
@@ -147,19 +72,28 @@ def generate_timeline_html(df):
             </div>
         </div>
         """
-
     return f"<html><head>{timeline_css}</head><body><div class='timeline-container'>{items_html}</div></body></html>"
-
-# Carrega os dados
-df = load_data(GOOGLE_SHEET_URL)
 
 # --- Interface do Usuário ---
 
 st.title("🌍 Linha do Tempo Interativa de Temas Geográficos")
-st.markdown("Do Século XVIII ao XXI, com dados carregados diretamente de uma planilha do Google Sheets.")
+
+# --- Barra Lateral para Seleção e Filtros ---
+st.sidebar.title("Opções")
+
+# Seletor para escolher a linha do tempo
+selected_source_name = st.sidebar.radio(
+    "Escolha a Linha do Tempo:",
+    options=list(SOURCES.keys())
+)
+
+# Carrega os dados da fonte selecionada
+selected_url = SOURCES[selected_source_name]
+df = load_data(selected_url)
+
+st.markdown(f"Visualizando: **{selected_source_name}**")
 
 if not df.empty:
-    # --- Barra Lateral para Filtros ---
     st.sidebar.header("Filtros")
     themes = df['Tema'].dropna().unique()
     filter_options = ["Todos"] + sorted(list(themes))
@@ -168,26 +102,23 @@ if not df.empty:
         options=filter_options
     )
 
-    # --- Lógica de Filtragem ---
+    # Lógica de Filtragem
     if selected_theme == "Todos":
         filtered_df = df
     else:
         filtered_df = df[df['Tema'] == selected_theme]
 
-    # --- Exibição da Linha do Tempo ---
+    # Exibição da Linha do Tempo
     if not filtered_df.empty:
         st.markdown(f"### Exibindo eventos para: **{selected_theme}**")
-        # Gera o HTML da linha do tempo
         timeline_html_content = generate_timeline_html(filtered_df)
-        # Calcula a altura necessária para o componente
-        calculated_height = 100 + (len(filtered_df) * 180) # 180px por item
-        # Renderiza o HTML usando o componente específico
+        calculated_height = 100 + (len(filtered_df) * 180)
         components.html(timeline_html_content, height=calculated_height, scrolling=True)
     else:
         st.warning("Nenhum evento encontrado para o tema selecionado.")
 else:
-    st.info("Aguardando o carregamento dos dados...")
+    st.info("Aguardando o carregamento dos dados... Certifique-se de que o GID da planilha está correto.")
 
-# Adiciona um rodapé
+# Rodapé
 st.markdown("---")
 st.markdown("Aplicação desenvolvida com Python e Streamlit.")
