@@ -89,36 +89,40 @@ df = load_data(selected_url)
 st.markdown(f"### Visualizando: **{selected_source_name}**")
 
 if not df.empty:
-    # --- Lógica para adaptar os dados e renderizar ---
+    # --- Lógica para adaptar os dados e criar filtros ---
     
-    filtered_df = pd.DataFrame()
-
+    st.sidebar.header("Filtros")
+    
     if source_info['type'] == 'timeline':
-        # Renomeia as colunas para o padrão da linha do tempo
         df.columns = ['Data', 'Titulo', 'Descricao', 'Tema']
+        filter_column = 'Tema'
+        filter_label = "Selecione um Tema:"
         
-        # Adiciona o filtro de tema
-        st.sidebar.header("Filtros")
-        themes = df['Tema'].dropna().unique()
-        filter_options = ["Todos"] + sorted(list(themes))
-        selected_theme = st.sidebar.selectbox("Selecione um Tema:", options=filter_options)
-
-        filtered_df = df if selected_theme == "Todos" else df[df['Tema'] == selected_theme]
-        st.markdown(f"Exibindo eventos para: **{selected_theme}**")
-
     elif source_info['type'] == 'leaders':
-        # Adapta as colunas dos líderes para o formato da linha do tempo
         df.columns = ['Data', 'Titulo', 'Descricao', 'Tema'] # 'Períodos' vira o 'Tema'
-        filtered_df = df # Mostra todos os líderes, sem filtro de tema
+        filter_column = 'Tema'
+        filter_label = "Selecione um Período:"
+
+    # Cria o filtro com base na coluna definida
+    filter_values = df[filter_column].dropna().unique()
+    filter_options = ["Todos"] + sorted(list(filter_values))
+    selected_filter = st.sidebar.selectbox(filter_label, options=filter_options)
+
+    # Aplica o filtro
+    if selected_filter == "Todos":
+        filtered_df = df
+    else:
+        filtered_df = df[df[filter_column] == selected_filter]
+    
+    st.markdown(f"Exibindo itens para: **{selected_filter}**")
 
     # --- Renderização ---
     if not filtered_df.empty:
-        # Gera e renderiza o HTML da linha do tempo
         timeline_html = generate_timeline_html(filtered_df)
-        height = 100 + (len(filtered_df) * 180) # Altura calculada
+        height = 100 + (len(filtered_df) * 180)
         components.html(timeline_html, height=height, scrolling=True)
     else:
-        st.warning("Nenhum evento encontrado para a seleção atual.")
+        st.warning("Nenhum item encontrado para a seleção atual.")
 
 else:
     st.info("Aguardando o carregamento dos dados... Certifique-se de que o GID da planilha está correto e que ela está compartilhada publicamente.")
