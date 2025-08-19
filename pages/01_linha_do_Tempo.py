@@ -10,32 +10,30 @@ st.set_page_config(
 )
 
 # --- Configuração das Fontes de Dados (Planilhas) ---
-# ID da sua planilha do Google Sheets (o mesmo para ambas as abas)
 SHEET_ID = "1Q3IsRvT5KmR72NtWYuHSqKz50xdP9S4a-U5z6UAacTQ"
 
-# Dicionário com os nomes das linhas do tempo e os GIDs de cada aba
-# IMPORTANTE: Substitua "SEU_GID_AQUI" pelo GID da sua nova aba "História do Brasil"
+# Dicionário com os nomes, GIDs e tipos de visualização de cada aba
 SOURCES = {
-    "Geografia Mundial": f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0",
-    "História do Brasil": f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1829533477"
+    "Geografia Mundial": {"gid": "0", "type": "timeline"},
+    "História do Brasil": {"gid": "1829533477", "type": "timeline"},
+    "Líderes do Brasil": {"gid": "918682842", "type": "leaders"}
 }
 
-# Função para carregar os dados, com cache para otimizar a performance
-@st.cache_data(ttl=600) # Atualiza os dados a cada 10 minutos
+# Função para carregar os dados
+@st.cache_data(ttl=600)
 def load_data(url):
-    """Carrega os dados da planilha pública do Google Sheets."""
     try:
         df = pd.read_csv(url)
         df.dropna(how='all', inplace=True)
-        # Renomeia as colunas para garantir consistência
-        df.columns = ['Data', 'Titulo', 'Descricao', 'Tema']
         return df
     except Exception as e:
-        st.error(f"Não foi possível carregar os dados da planilha. Verifique o link e as permissões de compartilhamento. Erro: {e}")
+        st.error(f"Não foi possível carregar os dados da planilha. Verifique o link, o GID e as permissões de compartilhamento. Erro: {e}")
         return pd.DataFrame()
 
+# --- Funções de Geração de HTML ---
+
 def generate_timeline_html(df):
-    """Gera o código HTML para a linha do tempo visual a partir de um DataFrame."""
+    """Gera o código HTML para a linha do tempo visual."""
     timeline_css = """
     <style>
         body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
@@ -74,50 +72,76 @@ def generate_timeline_html(df):
         """
     return f"<html><head>{timeline_css}</head><body><div class='timeline-container'>{items_html}</div></body></html>"
 
-# --- Interface do Usuário ---
+def generate_leaders_html(df):
+    """Gera o código HTML para os cartões de líderes."""
+    leaders_css = """
+    <style>
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        .leaders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; padding: 2rem 0; max-width: 1200px; margin: 0 auto; }
+        .leader-card { background-color: white; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); padding: 20px; }
+        .leader-card h2 { font-size: 1.25rem; font-weight: bold; color: #374151; }
+        .leader-card .period { font-size: 0.875rem; font-weight: 500; color: #6B7280; margin-bottom: 1rem; }
+        .leader-card h3 { font-size: 1rem; font-weight: bold; color: #374151; margin-top: 1rem; border-bottom: 2px solid #FDBA74; padding-bottom: 0.25rem; margin-bottom: 0.5rem; }
+        .leader-card p { font-size: 0.9rem; line-height: 1.6; color: #4B5563; }
+    </style>
+    """
+    cards_html = ""
+    for index, row in df.iterrows():
+        cards_html += f"""
+        <div class="leader-card">
+            <h2>{row['Nome']}</h2>
+            <div class="period">{row['Periodos']}</div>
+            <h3>Contribuições e Relações com a Geografia</h3>
+            <p>{row['Contribuicoes']}</p>
+        </div>
+        """
+    return f"<html><head>{leaders_css}</head><body><div class='leaders-grid'>{cards_html}</div></body></html>"
 
-st.title("🌍 Linha do Tempo Interativa de Temas Geográficos")
 
-# --- Barra Lateral para Seleção e Filtros ---
-st.sidebar.title("Opções")
+# --- Interface Principal ---
 
-# Seletor para escolher a linha do tempo
+st.title("🌍 Linha do Tempo e Análises Geográficas")
+
+# Seletor na barra lateral para escolher a fonte de dados
 selected_source_name = st.sidebar.radio(
-    "Escolha a Linha do Tempo:",
+    "Escolha a visualização:",
     options=list(SOURCES.keys())
 )
 
-# Carrega os dados da fonte selecionada
-selected_url = SOURCES[selected_source_name]
+source_info = SOURCES[selected_source_name]
+selected_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={source_info['gid']}"
 df = load_data(selected_url)
 
-st.markdown(f"Visualizando: **{selected_source_name}**")
+st.markdown(f"### Visualizando: **{selected_source_name}**")
 
 if not df.empty:
-    st.sidebar.header("Filtros")
-    themes = df['Tema'].dropna().unique()
-    filter_options = ["Todos"] + sorted(list(themes))
-    selected_theme = st.sidebar.selectbox(
-        "Selecione um Tema:",
-        options=filter_options
-    )
+    # --- Lógica para renderizar o tipo de visualização correto ---
 
-    # Lógica de Filtragem
-    if selected_theme == "Todos":
-        filtered_df = df
-    else:
-        filtered_df = df[df['Tema'] == selected_theme]
+    if source_info['type'] == 'timeline':
+        df.columns = ['Data', 'Titulo', 'Descricao', 'Tema']
+        st.sidebar.header("Filtros")
+        themes = df['Tema'].dropna().unique()
+        filter_options = ["Todos"] + sorted(list(themes))
+        selected_theme = st.sidebar.selectbox("Selecione um Tema:", options=filter_options)
 
-    # Exibição da Linha do Tempo
-    if not filtered_df.empty:
-        st.markdown(f"### Exibindo eventos para: **{selected_theme}**")
-        timeline_html_content = generate_timeline_html(filtered_df)
-        calculated_height = 100 + (len(filtered_df) * 180)
-        components.html(timeline_html_content, height=calculated_height, scrolling=True)
-    else:
-        st.warning("Nenhum evento encontrado para o tema selecionado.")
+        filtered_df = df if selected_theme == "Todos" else df[df['Tema'] == selected_theme]
+
+        if not filtered_df.empty:
+            st.markdown(f"Exibindo eventos para: **{selected_theme}**")
+            timeline_html = generate_timeline_html(filtered_df)
+            height = 100 + (len(filtered_df) * 180)
+            components.html(timeline_html, height=height, scrolling=True)
+        else:
+            st.warning("Nenhum evento encontrado para o tema selecionado.")
+
+    elif source_info['type'] == 'leaders':
+        df.columns = ['Datas', 'Nome', 'Contribuicoes', 'Periodos']
+        leaders_html = generate_leaders_html(df)
+        height = 200 + (len(df) * 150) # Altura calculada para os cartões
+        components.html(leaders_html, height=height, scrolling=True)
+
 else:
-    st.info("Aguardando o carregamento dos dados... Certifique-se de que o GID da planilha está correto.")
+    st.info("Aguardando o carregamento dos dados... Certifique-se de que o GID da planilha está correto e que ela está compartilhada publicamente.")
 
 # Rodapé
 st.markdown("---")
