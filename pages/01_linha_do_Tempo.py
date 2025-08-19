@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import streamlit.components.v1 as components
 
 # Configuração da página
 st.set_page_config(
@@ -32,8 +33,12 @@ def generate_timeline_html(df):
     # CSS para estilizar a linha do tempo, injetado diretamente no HTML
     timeline_css = """
     <style>
-        .timeline-container {
+        body {
             font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .timeline-container {
             position: relative;
             padding: 2rem 0;
             max-width: 1000px;
@@ -143,7 +148,7 @@ def generate_timeline_html(df):
         </div>
         """
 
-    return f"{timeline_css}<div class='timeline-container'>{items_html}</div>"
+    return f"<html><head>{timeline_css}</head><body><div class='timeline-container'>{items_html}</div></body></html>"
 
 # Carrega os dados
 df = load_data(GOOGLE_SHEET_URL)
@@ -172,9 +177,12 @@ if not df.empty:
     # --- Exibição da Linha do Tempo ---
     if not filtered_df.empty:
         st.markdown(f"### Exibindo eventos para: **{selected_theme}**")
-        # Gera e renderiza o HTML da linha do tempo
+        # Gera o HTML da linha do tempo
         timeline_html_content = generate_timeline_html(filtered_df)
-        st.markdown(timeline_html_content, unsafe_allow_html=True)
+        # Calcula a altura necessária para o componente
+        calculated_height = 100 + (len(filtered_df) * 180) # 180px por item
+        # Renderiza o HTML usando o componente específico
+        components.html(timeline_html_content, height=calculated_height, scrolling=True)
     else:
         st.warning("Nenhum evento encontrado para o tema selecionado.")
 else:
